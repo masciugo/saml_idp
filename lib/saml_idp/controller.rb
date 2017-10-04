@@ -33,9 +33,9 @@ module SamlIdp
       end.new(nil)
     end
 
-    def validate_saml_request(raw_saml_request = params[:SAMLRequest])
-      decode_request(raw_saml_request)
-      unless valid_saml_request?
+    def validate_saml_request
+      decode_request(params[:SAMLRequest])
+      if (http_redirect_binding? && !valid_http_redirect_binding_signature?) || !valid_saml_request?
         if Rails::VERSION::MAJOR >= 4
           head :forbidden
         else
@@ -106,7 +106,24 @@ module SamlIdp
     end
 
     def valid_saml_request?
-      saml_request.valid?
+      saml_request.valid?(!http_redirect_binding?)
+    end
+
+    def http_redirect_binding?
+      params[:Signature].present? && params[:SigAlg].present?
+    end
+
+    def valid_http_redirect_binding_signature?
+      # todo add check on SP validate_signature setting
+      puts 'http_redirect_binding signature validation ....'
+      type = params.keys.find{|p| p.start_with? 'SAML'}
+      query_string = OneLogin::RubySaml::Utils.build_query(type: type, data: params[type], relay_state: params['RelayState'], sig_alg: params['SigAlg'])
+      cert = OpenSSL::X509::Certificate.new(saml_request.service_provider.cert)
+      sig_alg = ::XMLSecurity::BaseDocument.new.algorithm(params[:SigAlg])
+      signature = params[:Signature]
+      OneLogin::RubySaml::Utils.verify_signature(cert: cert, sig_alg: sig_alg, signature: signature, query_string: query_string)
+    rescue
+      false
     end
 
     def saml_request_id

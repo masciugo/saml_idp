@@ -84,7 +84,7 @@ module SamlIdp
       end
     end
 
-    def valid?
+    def valid?(validate_signature = true)
       unless service_provider?
         log "Unable to find service provider for issuer #{issuer}"
         return false
@@ -95,7 +95,7 @@ module SamlIdp
         return false
       end
 
-      unless valid_signature?
+      unless !(validate_signature && valid_signature?)
         log "Signature is invalid in #{raw_xml}"
         return false
       end
@@ -113,6 +113,28 @@ module SamlIdp
       # protection against a cross-site DoS.
       service_provider.valid_signature?(document, logout_request?)
     end
+
+    # def valid_signature?
+    #   # Force signatures for logout requests because there is no other
+    #   # protection against a cross-site DoS.
+    #   debugger
+    #   if http_redirect_binding? && (service_provider.should_validate_signature? || logout_request?)
+    #     puts 'http_redirect_binding signature validation ....'
+    #     query_string = OneLogin::RubySaml::Utils.build_query(type: type, data: params[type], relay_state: params['RelayState'], sig_alg: params['SigAlg'])
+    #     cert = OpenSSL::X509::Certificate.new(saml_request.service_provider.cert)
+    #     sig_alg = ::XMLSecurity::BaseDocument.new.algorithm(params[:SigAlg])
+    #     signature = params[:Signature]
+    #     OneLogin::RubySaml::Utils.verify_signature(cert: cert, sig_alg: sig_alg, signature: signature, query_string: query_string)
+    #   else
+    #     service_provider.valid_signature?(document, logout_request?)
+    #   end
+    # rescue
+    #   false
+    # end
+    # def http_redirect_binding?
+    #   params[:Signature].present? && params[:SigAlg].present?
+    # end
+
 
     def service_provider?
       service_provider && service_provider.valid?
